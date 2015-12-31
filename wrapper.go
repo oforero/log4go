@@ -33,14 +33,14 @@ func Close() {
 
 func Crash(args ...interface{}) {
 	if len(args) > 0 {
-		Global.intLogf(CRITICAL, strings.Repeat(" %v", len(args))[1:], args...)
+		Global.logLvl(CRITICAL, strings.Repeat(" %v", len(args))[1:], args...)
 	}
 	panic(args)
 }
 
 // Logs the given message and crashes the program
 func Crashf(format string, args ...interface{}) {
-	Global.intLogf(CRITICAL, format, args...)
+	Global.logLvl(CRITICAL, format, args...)
 	Global.Close() // so that hopefully the messages get logged
 	panic(fmt.Sprintf(format, args...))
 }
@@ -48,7 +48,7 @@ func Crashf(format string, args ...interface{}) {
 // Compatibility with `log`
 func Exit(args ...interface{}) {
 	if len(args) > 0 {
-		Global.intLogf(ERROR, strings.Repeat(" %v", len(args))[1:], args...)
+		Global.logLvl(ERROR, strings.Repeat(" %v", len(args))[1:], args...)
 	}
 	Global.Close() // so that hopefully the messages get logged
 	os.Exit(0)
@@ -56,7 +56,7 @@ func Exit(args ...interface{}) {
 
 // Compatibility with `log`
 func Exitf(format string, args ...interface{}) {
-	Global.intLogf(ERROR, format, args...)
+	Global.logLvl(ERROR, format, args...)
 	Global.Close() // so that hopefully the messages get logged
 	os.Exit(0)
 }

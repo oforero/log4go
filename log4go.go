@@ -207,95 +207,68 @@ func (log Logger) getCaller() string {
 	return ""
 }
 
-// Send a formatted log message internally
-func (log Logger) intLogf(lvl Level, format string, args ...interface{}) *string {
-	if !log.willLog(lvl) {
-		return nil
-	}
-
-	msg := format
-	if len(args) > 0 {
-		msg = fmt.Sprintf(format, args...)
-	}
-
+// Build a LogRecord and return a pointer to it
+func (log Logger) makeLogRecord(lvl Level, src string, arg0 interface{}, args ...interface{}) *LogRecord {
 	// Make the log record
 	rec := &LogRecord{
 		Level:   lvl,
 		Created: time.Now(),
-		Source:  log.getCaller(),
-		Message: msg,
-	}
-	log.dispatchLog(lvl, rec)
-	return &msg
-}
-
-// Send a closure log message internally
-func (log Logger) intLogc(lvl Level, closure func() string) *string {
-	if !log.willLog(lvl) {
-		return nil
+		Source:  src,
 	}
 
-	// Make the log record
-	rec := &LogRecord{
-		Level:   lvl,
-		Created: time.Now(),
-		Source:  log.getCaller(),
-		Message: closure(),
+	var msg string
+	switch first := arg0.(type) {
+	case string:
+		// Use the string as a format string
+		msg = first
+		if len(args) > 0 {
+			msg = fmt.Sprintf(first, args...)
+		}
+	case func() string:
+		// Log the closure (no other arguments used)
+		msg = first()
+	default:
+		// Build a format string so that it will be similar to Sprint
+		msg = fmt.Sprint(arg0) + strings.Repeat(" %v", len(args))
+		msg = fmt.Sprintf(msg, args...)
 	}
-
-	log.dispatchLog(lvl, rec)
-	return &rec.Message
+	rec.Message = msg
+	return rec
 }
 
 // Send a log message with manual level, source, and message.
-func (log Logger) Log(lvl Level, source, message string) *string {
-	if !log.willLog(lvl) {
-		return nil
-	}
-
-	// Make the log record
-	rec := &LogRecord{
-		Level:   lvl,
-		Created: time.Now(),
-		Source:  source,
-		Message: message,
-	}
-
-	log.dispatchLog(lvl, rec)
-	return &message
+func (log Logger) Log(lvl Level, source, message string) {
+	log.logLvlSrc(lvl, source, message)
 }
 
 // Logf logs a formatted log message at the given log level, using the caller as
 // its source.
 func (log Logger) Logf(lvl Level, format string, args ...interface{}) {
-	log.intLogf(lvl, format, args...)
+	log.logLvl(lvl, format, args...)
 }
 
 // Logc logs a string returned by the closure at the given log level, using the caller as
 // its source.  If no log message would be written, the closure is never called.
 func (log Logger) Logc(lvl Level, closure func() string) {
-	log.intLogc(lvl, closure)
+	log.logLvl(lvl, closure)
 }
 
 // Helper function to avoid repetition in each of the specific level loggers
-func (log Logger) logLvl(lvl Level, arg0 interface{}, args ...interface{}) error {
+func (log Logger) logLvlSrc(lvl Level, src string, arg0 interface{}, args ...interface{}) error {
 	var err error
-	var msg *string
-	switch first := arg0.(type) {
-	case string:
-		// Use the string as a format string
-		msg = log.intLogf(lvl, first, args...)
-	case func() string:
-		// Log the closure (no other arguments used)
-		msg = log.intLogc(lvl, first)
-	default:
-		// Build a format string so that it will be similar to Sprint
-		msg = log.intLogf(lvl, fmt.Sprint(arg0)+strings.Repeat(" %v", len(args)), args...)
+	if !log.willLog(lvl) {
+		return nil
 	}
-	if lvl >= WARNING && msg != nil {
-		err = errors.New(*msg)
+	rec := log.makeLogRecord(lvl, src, arg0, args...)
+	log.dispatchLog(lvl, rec)
+	if lvl >= WARNING && rec != nil {
+		err = errors.New(rec.Message)
 	}
 	return err
+}
+
+func (log Logger) logLvl(lvl Level, arg0 interface{}, args ...interface{}) error {
+	return log.logLvlSrc(lvl, log.getCaller(), arg0, args...)
 }
 
 // Finest logs a message at the finest log level.
