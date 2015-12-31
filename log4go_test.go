@@ -89,12 +89,12 @@ var logRecordWriteTests = []struct {
 			Message: "message",
 			Created: now,
 		},
-		Console: "[23:31:30 UTC 2009/02/13] [CRIT] message\n",
+		Console: "[23:31:30 UTC 2009/02/13] [CRIT] (source) message\n",
 	},
 }
 
 func TestConsoleLogWriter(t *testing.T) {
-	console := make(ConsoleLogWriter)
+	console := NewConsoleLogWriter()
 
 	r, w := io.Pipe()
 	go console.run(w)
@@ -383,7 +383,7 @@ func TestXMLConfig(t *testing.T) {
 	}
 
 	// Make sure they're the right type
-	if _, ok := log["stdout"].LogWriter.(ConsoleLogWriter); !ok {
+	if _, ok := log["stdout"].LogWriter.(*ConsoleLogWriter); !ok {
 		t.Fatalf("XMLConfig: Expected stdout to be ConsoleLogWriter, found %T", log["stdout"].LogWriter)
 	}
 	if _, ok := log["file"].LogWriter.(*FileLogWriter); !ok {
