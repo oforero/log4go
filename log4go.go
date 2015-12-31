@@ -180,26 +180,37 @@ func (log Logger) AddFilter(name string, lvl Level, writer LogWriter) Logger {
 }
 
 /******* Logging *******/
-// Send a formatted log message internally
-func (log Logger) intLogf(lvl Level, format string, args ...interface{}) *string {
-	skip := true
-
-	// Determine if any logging will be done
+func (log Logger) willLog(lvl Level) bool {
 	for _, filt := range log {
 		if lvl >= filt.Level {
-			skip = false
-			break
+			return true
 		}
 	}
-	if skip {
-		return nil
-	}
+	return false
+}
 
-	// Determine caller func
-	pc, _, lineno, ok := runtime.Caller(2)
-	src := ""
-	if ok {
-		src = fmt.Sprintf("%s:%d", runtime.FuncForPC(pc).Name(), lineno)
+func (log Logger) dispatchLog(lvl Level, rec *LogRecord) {
+	// Dispatch the logs
+	for _, filt := range log {
+		if lvl < filt.Level {
+			continue
+		}
+		filt.LogWrite(rec)
+	}
+}
+
+// Determine caller func
+func (log Logger) getCaller() string {
+	if pc, _, lineno, ok := runtime.Caller(3); ok {
+		return fmt.Sprintf("%s:%d", runtime.FuncForPC(pc).Name(), lineno)
+	}
+	return ""
+}
+
+// Send a formatted log message internally
+func (log Logger) intLogf(lvl Level, format string, args ...interface{}) *string {
+	if !log.willLog(lvl) {
+		return nil
 	}
 
 	msg := format
@@ -211,72 +222,34 @@ func (log Logger) intLogf(lvl Level, format string, args ...interface{}) *string
 	rec := &LogRecord{
 		Level:   lvl,
 		Created: time.Now(),
-		Source:  src,
+		Source:  log.getCaller(),
 		Message: msg,
 	}
-
-	// Dispatch the logs
-	for _, filt := range log {
-		if lvl < filt.Level {
-			continue
-		}
-		filt.LogWrite(rec)
-	}
+	log.dispatchLog(lvl, rec)
 	return &msg
 }
 
 // Send a closure log message internally
 func (log Logger) intLogc(lvl Level, closure func() string) *string {
-	skip := true
-
-	// Determine if any logging will be done
-	for _, filt := range log {
-		if lvl >= filt.Level {
-			skip = false
-			break
-		}
-	}
-	if skip {
+	if !log.willLog(lvl) {
 		return nil
-	}
-
-	// Determine caller func
-	pc, _, lineno, ok := runtime.Caller(2)
-	src := ""
-	if ok {
-		src = fmt.Sprintf("%s:%d", runtime.FuncForPC(pc).Name(), lineno)
 	}
 
 	// Make the log record
 	rec := &LogRecord{
 		Level:   lvl,
 		Created: time.Now(),
-		Source:  src,
+		Source:  log.getCaller(),
 		Message: closure(),
 	}
 
-	// Dispatch the logs
-	for _, filt := range log {
-		if lvl < filt.Level {
-			continue
-		}
-		filt.LogWrite(rec)
-	}
+	log.dispatchLog(lvl, rec)
 	return &rec.Message
 }
 
 // Send a log message with manual level, source, and message.
 func (log Logger) Log(lvl Level, source, message string) *string {
-	skip := true
-
-	// Determine if any logging will be done
-	for _, filt := range log {
-		if lvl >= filt.Level {
-			skip = false
-			break
-		}
-	}
-	if skip {
+	if !log.willLog(lvl) {
 		return nil
 	}
 
@@ -288,13 +261,7 @@ func (log Logger) Log(lvl Level, source, message string) *string {
 		Message: message,
 	}
 
-	// Dispatch the logs
-	for _, filt := range log {
-		if lvl < filt.Level {
-			continue
-		}
-		filt.LogWrite(rec)
-	}
+	log.dispatchLog(lvl, rec)
 	return &message
 }
 
